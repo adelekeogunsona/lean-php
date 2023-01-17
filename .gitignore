@@ -1,0 +1,20 @@
+# Dependencies
+vendor/
+
+# Environment files
+.env
+
+# Storage directories
+storage/logs/
+storage/cache/
+storage/ratelimit/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db

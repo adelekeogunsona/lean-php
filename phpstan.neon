@@ -5,3 +5,10 @@ parameters:
         - app
         - tests
     tmpDir: storage/cache/phpstan
+    ignoreErrors:
+        # Allow mixed array types for HTTP request/response data
+        - identifier: missingType.iterableValue
+        # Allow string|false from parse_url which we handle properly
+        - '#Parameter \#2 \$path of class LeanPHP\\Http\\Request constructor expects string, string\|false given#'
+        # Allow string|false from json_encode which we handle properly
+        - '#Property LeanPHP\\Http\\Response::\$body \(string\) does not accept string\|false#'

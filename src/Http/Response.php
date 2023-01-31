@@ -102,4 +102,14 @@ class Response
         $this->body = $body;
         return $this;
     }
+
+    /**
+     * Create a copy without the body (for HEAD requests).
+     */
+    public function withoutBody(): self
+    {
+        $new = clone $this;
+        $new->body = '';
+        return $new;
+    }
 }

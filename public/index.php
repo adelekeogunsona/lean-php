@@ -8,6 +8,9 @@ require_once __DIR__ . '/../vendor/autoload.php';
 use LeanPHP\Http\Request;
 use LeanPHP\Http\Response;
 use LeanPHP\Http\ResponseEmitter;
+use LeanPHP\Http\MiddlewareRunner;
+use LeanPHP\Routing\Router;
+use App\Middleware\ErrorHandler;
 
 // Load environment variables if .env file exists
 if (file_exists(__DIR__ . '/../.env')) {
@@ -24,13 +27,18 @@ date_default_timezone_set($config['timezone']);
 // Build request from globals
 $request = Request::fromGlobals();
 
-// Temporary: return Hello JSON (will be replaced with proper routing later)
-$response = Response::json([
-    'message' => 'Hello, LeanPHP!',
-    'timestamp' => date('c'),
-    'method' => $request->method(),
-    'path' => $request->path(),
-]);
+// Create router and register routes
+$router = new Router();
+require __DIR__ . '/../routes/api.php';
+
+// Set up middleware pipeline
+$middlewareRunner = new MiddlewareRunner();
+$middlewareRunner->add(new ErrorHandler());
+
+// Handle the request through middleware and routing
+$response = $middlewareRunner->handle($request, function (Request $request) use ($router) {
+    return $router->dispatch($request);
+});
 
 // Emit the response
 ResponseEmitter::emit($response);

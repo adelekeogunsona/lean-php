@@ -12,3 +12,12 @@ $router->get('/health', function ($request) {
         'timestamp' => date('c'),
     ]);
 });
+
+// Test endpoint for JSON BodyParser
+$router->post('/test', function ($request) {
+    return Response::json([
+        'message' => 'JSON received successfully',
+        'data' => $request->json(),
+        'timestamp' => date('c'),
+    ]);
+});

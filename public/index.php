@@ -11,6 +11,9 @@ use LeanPHP\Http\ResponseEmitter;
 use LeanPHP\Http\MiddlewareRunner;
 use LeanPHP\Routing\Router;
 use App\Middleware\ErrorHandler;
+use App\Middleware\RequestId;
+use App\Middleware\Cors;
+use App\Middleware\JsonBodyParser;
 
 // Load environment variables if .env file exists
 if (file_exists(__DIR__ . '/../.env')) {
@@ -34,6 +37,9 @@ require __DIR__ . '/../routes/api.php';
 // Set up middleware pipeline
 $middlewareRunner = new MiddlewareRunner();
 $middlewareRunner->add(new ErrorHandler());
+$middlewareRunner->add(new RequestId());
+$middlewareRunner->add(new Cors());
+$middlewareRunner->add(new JsonBodyParser());
 
 // Handle the request through middleware and routing
 $response = $middlewareRunner->handle($request, function (Request $request) use ($router) {

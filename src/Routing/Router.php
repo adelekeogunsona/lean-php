@@ -12,6 +12,7 @@ class Router
 {
     private array $routes = [];
     private array $globalMiddleware = [];
+    private array $groupStack = [];
 
     /**
      * Register a GET route.
@@ -74,23 +75,53 @@ class Router
      */
     private function addRoute(string $method, string $path, callable|array $handler, array $middleware): void
     {
+        // Apply group prefixes and middleware
+        $fullPath = $this->getFullPath($path);
+        $fullMiddleware = $this->getFullMiddleware($middleware);
+
+        $compiled = $this->compileRoute($fullPath);
+
         $this->routes[] = [
             'method' => $method,
-            'path' => $path,
+            'path' => $fullPath,
             'handler' => $handler,
-            'middleware' => $middleware,
-            'regex' => $this->compileRoute($path),
+            'middleware' => $fullMiddleware,
+            'regex' => $compiled['regex'],
+            'params' => $compiled['params'],
         ];
     }
 
     /**
      * Compile a route path into a regex pattern.
      */
-    private function compileRoute(string $path): string
+    private function compileRoute(string $path): array
     {
-        // For now, handle static routes only
-        // Route parameters will be added in a future phase
-        return '#^' . preg_quote($path, '#') . '$#';
+        $params = [];
+        $regex = $path;
+
+        // Find route parameters like {id} or {id:\d+}
+        $regex = preg_replace_callback('/\{([^}]+)\}/', function ($matches) use (&$params) {
+            $param = $matches[1];
+
+            // Check if parameter has a constraint
+            if (str_contains($param, ':')) {
+                [$name, $constraint] = explode(':', $param, 2);
+                $params[] = $name;
+                return '(' . $constraint . ')';
+            }
+
+            // Default constraint for parameters without explicit constraint
+            $params[] = $param;
+            return '([^/]+)';
+        }, $regex);
+
+        // Escape other regex characters and wrap in delimiters
+        $regex = '#^' . $regex . '$#';
+
+        return [
+            'regex' => $regex,
+            'params' => $params,
+        ];
     }
 
     /**
@@ -114,8 +145,17 @@ class Router
 
         // Find matching routes
         foreach ($this->routes as $route) {
-            if (preg_match($route['regex'], $path)) {
+            if (preg_match($route['regex'], $path, $matches)) {
                 if ($route['method'] === $method) {
+                    // Extract route parameters
+                    $params = [];
+                    for ($i = 1; $i < count($matches); $i++) {
+                        if (isset($route['params'][$i - 1])) {
+                            $params[$route['params'][$i - 1]] = $matches[$i];
+                        }
+                    }
+
+                    $route['matched_params'] = $params;
                     $matchedRoutes[] = $route;
                 }
                 $availableMethods[] = $route['method'];
@@ -125,7 +165,16 @@ class Router
         // Auto-support HEAD requests by mapping to GET
         if ($method === 'HEAD') {
             foreach ($this->routes as $route) {
-                if ($route['method'] === 'GET' && preg_match($route['regex'], $path)) {
+                if ($route['method'] === 'GET' && preg_match($route['regex'], $path, $matches)) {
+                    // Extract route parameters for HEAD request too
+                    $params = [];
+                    for ($i = 1; $i < count($matches); $i++) {
+                        if (isset($route['params'][$i - 1])) {
+                            $params[$route['params'][$i - 1]] = $matches[$i];
+                        }
+                    }
+
+                    $route['matched_params'] = $params;
                     $matchedRoutes[] = $route;
                     break;
                 }
@@ -152,22 +201,14 @@ class Router
 
         $route = $matchedRoutes[0];
 
-        // Call the handler
-        $handler = $route['handler'];
-
-        if (is_array($handler)) {
-            // Controller@method format
-            [$controller, $method] = $handler;
-            if (is_string($controller)) {
-                $controller = new $controller();
-            }
-            $response = $controller->$method($request);
-        } else {
-            // Callable
-            $response = $handler($request);
+        // Set route parameters in the request
+        if (isset($route['matched_params'])) {
+            $request->setParams($route['matched_params']);
         }
 
-        // Ensure we have a Response object
+        // Run route-specific middleware and handler
+        $response = $this->runRouteMiddleware($route, $request);
+
         if (!$response instanceof Response) {
             throw new \InvalidArgumentException('Route handler must return a Response object');
         }
@@ -178,5 +219,101 @@ class Router
         }
 
         return $response;
+    }
+
+    /**
+     * Create a route group with common prefix and middleware.
+     */
+    public function group(string $prefix, array $attributes, callable $callback): void
+    {
+        $this->groupStack[] = [
+            'prefix' => $prefix,
+            'middleware' => $attributes['middleware'] ?? [],
+        ];
+
+        $callback($this);
+
+        array_pop($this->groupStack);
+    }
+
+    /**
+     * Get the full path including group prefixes.
+     */
+    private function getFullPath(string $path): string
+    {
+        $prefix = '';
+
+        foreach ($this->groupStack as $group) {
+            $prefix .= $group['prefix'];
+        }
+
+        return $prefix . $path;
+    }
+
+    /**
+     * Get the full middleware array including group middleware.
+     */
+    private function getFullMiddleware(array $routeMiddleware): array
+    {
+        $middleware = [];
+
+        // Add group middleware
+        foreach ($this->groupStack as $group) {
+            $middleware = array_merge($middleware, $group['middleware']);
+        }
+
+        // Add route-specific middleware
+        $middleware = array_merge($middleware, $routeMiddleware);
+
+        return $middleware;
+    }
+
+    /**
+     * Run route-specific middleware and handler.
+     */
+    private function runRouteMiddleware(array $route, Request $request): Response
+    {
+        $middleware = $route['middleware'];
+        $handler = $route['handler'];
+
+        // If no route middleware, call handler directly
+        if (empty($middleware)) {
+            return $this->callHandler($handler, $request);
+        }
+
+        // Create middleware pipeline for this route
+        $next = fn(Request $req) => $this->callHandler($handler, $req);
+
+        // Build the chain in reverse order
+        for ($i = count($middleware) - 1; $i >= 0; $i--) {
+            $middlewareInstance = $middleware[$i];
+
+            // Instantiate middleware if it's a string class name
+            if (is_string($middlewareInstance)) {
+                $middlewareInstance = new $middlewareInstance();
+            }
+
+            $next = fn(Request $req) => $middlewareInstance->handle($req, $next);
+        }
+
+        return $next($request);
+    }
+
+    /**
+     * Call the route handler.
+     */
+    private function callHandler(callable|array $handler, Request $request): Response
+    {
+        if (is_array($handler)) {
+            // Controller@method format
+            [$controller, $method] = $handler;
+            if (is_string($controller)) {
+                $controller = new $controller();
+            }
+            return $controller->$method($request);
+        }
+
+        // Callable
+        return $handler($request);
     }
 }

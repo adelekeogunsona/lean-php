@@ -7,6 +7,7 @@ namespace App\Middleware;
 use LeanPHP\Http\Request;
 use LeanPHP\Http\Response;
 use LeanPHP\Http\Problem;
+use LeanPHP\Validation\ValidationException;
 use Throwable;
 
 class ErrorHandler
@@ -23,6 +24,11 @@ class ErrorHandler
     private function handleException(Throwable $e, Request $request): Response
     {
         $debug = (bool) ($_ENV['APP_DEBUG'] ?? false);
+
+        // Handle validation exceptions
+        if ($e instanceof ValidationException) {
+            return $e->getResponse();
+        }
 
         // Default to 500 Internal Server Error
         $status = 500;

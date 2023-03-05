@@ -15,7 +15,10 @@
         "psr-4": {
             "LeanPHP\\": "src/",
             "App\\": "app/"
-        }
+        },
+        "files": [
+            "src/Support/env.php"
+        ]
     },
     "autoload-dev": {
         "psr-4": {

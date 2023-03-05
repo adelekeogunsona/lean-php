@@ -8,6 +8,7 @@ vendor/
 storage/logs/
 storage/cache/
 storage/ratelimit/
+storage/database.sqlite
 
 # IDE files
 .vscode/

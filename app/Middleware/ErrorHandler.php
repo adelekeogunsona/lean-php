@@ -53,7 +53,11 @@ class ErrorHandler
             // Add debug info to the problem response
             $body = json_decode($problem->getBody(), true);
             $body['debug'] = $debugInfo;
-            $problem = $problem->setBody(json_encode($body, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+            $encodedBody = json_encode($body, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+            if ($encodedBody === false) {
+                $encodedBody = '{"error": "Failed to encode debug information"}';
+            }
+            $problem = $problem->setBody($encodedBody);
         }
 
         return $problem;

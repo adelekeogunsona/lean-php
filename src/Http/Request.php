@@ -12,6 +12,7 @@ class Request
     private array $query;
     private ?array $json;
     private array $params = [];
+    private ?array $claims = null;
 
     private function __construct(
         string $method,
@@ -143,5 +144,37 @@ class Request
     public function setParams(array $params): void
     {
         $this->params = $params;
+    }
+
+    /**
+     * Get JWT claims (set by AuthBearer middleware).
+     */
+    public function claims(): ?array
+    {
+        return $this->claims;
+    }
+
+    /**
+     * Set JWT claims (used by AuthBearer middleware).
+     */
+    public function setClaims(array $claims): void
+    {
+        $this->claims = $claims;
+    }
+
+    /**
+     * Get a specific claim value.
+     */
+    public function claim(string $key, mixed $default = null): mixed
+    {
+        return $this->claims[$key] ?? $default;
+    }
+
+    /**
+     * Check if the request is authenticated (has valid JWT claims).
+     */
+    public function isAuthenticated(): bool
+    {
+        return $this->claims !== null;
     }
 }

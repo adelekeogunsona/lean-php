@@ -206,8 +206,8 @@ class Router
             $request->setParams($route['matched_params']);
         }
 
-        // Run route-specific middleware and handler
-        $response = $this->runRouteMiddleware($route, $request);
+        // Run global middleware first, then route-specific middleware and handler
+        $response = $this->runMiddleware($this->globalMiddleware, $route, $request);
 
         if (!$response instanceof Response) {
             throw new \InvalidArgumentException('Route handler must return a Response object');
@@ -269,24 +269,27 @@ class Router
     }
 
     /**
-     * Run route-specific middleware and handler.
+     * Run global middleware, route-specific middleware, and handler in sequence.
      */
-    private function runRouteMiddleware(array $route, Request $request): Response
+    private function runMiddleware(array $globalMiddleware, array $route, Request $request): Response
     {
-        $middleware = $route['middleware'];
+        $routeMiddleware = $route['middleware'];
         $handler = $route['handler'];
 
-        // If no route middleware, call handler directly
-        if (empty($middleware)) {
+        // Combine global middleware with route middleware (global runs first)
+        $allMiddleware = array_merge($globalMiddleware, $routeMiddleware);
+
+        // If no middleware at all, call handler directly
+        if (empty($allMiddleware)) {
             return $this->callHandler($handler, $request);
         }
 
-        // Create middleware pipeline for this route
+        // Create middleware pipeline starting with the handler
         $next = fn(Request $req) => $this->callHandler($handler, $req);
 
-        // Build the chain in reverse order
-        for ($i = count($middleware) - 1; $i >= 0; $i--) {
-            $middlewareInstance = $middleware[$i];
+        // Build the chain in reverse order (so they execute in forward order)
+        for ($i = count($allMiddleware) - 1; $i >= 0; $i--) {
+            $middlewareInstance = $allMiddleware[$i];
 
             // Instantiate middleware if it's a string class name
             if (is_string($middlewareInstance)) {

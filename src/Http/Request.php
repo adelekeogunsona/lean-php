@@ -177,4 +177,30 @@ class Request
     {
         return $this->claims !== null;
     }
+
+    /**
+     * Get the client IP address.
+     *
+     * Checks X-Forwarded-For and X-Real-IP headers for proxy scenarios,
+     * falls back to REMOTE_ADDR.
+     */
+    public function getClientIp(): string
+    {
+        // Check X-Forwarded-For (may contain comma-separated list)
+        $forwarded = $this->header('x-forwarded-for');
+        if ($forwarded) {
+            $ips = array_map('trim', explode(',', $forwarded));
+            // Return the first (original client) IP
+            return $ips[0];
+        }
+
+        // Check X-Real-IP
+        $realIp = $this->header('x-real-ip');
+        if ($realIp) {
+            return $realIp;
+        }
+
+        // Fall back to REMOTE_ADDR
+        return $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
+    }
 }

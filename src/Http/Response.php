@@ -87,6 +87,14 @@ class Response
     }
 
     /**
+     * Get a specific header value.
+     */
+    public function getHeader(string $name): ?string
+    {
+        return $this->headers[strtolower($name)] ?? null;
+    }
+
+    /**
      * Get the response body.
      */
     public function getBody(): string

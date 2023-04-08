@@ -6,13 +6,13 @@ use LeanPHP\Routing\Router;
 use LeanPHP\Http\Response;
 use LeanPHP\Validation\Validator;
 
-// Health check endpoint
+// Health check endpoint with ETag support
 $router->get('/health', function ($request) {
     return Response::json([
         'status' => 'ok',
         'timestamp' => date('c'),
     ]);
-});
+}, [App\Middleware\ETag::class]);
 
 // Test endpoint for JSON BodyParser
 $router->post('/test', function ($request) {
@@ -23,7 +23,7 @@ $router->post('/test', function ($request) {
     ]);
 });
 
-// Test route parameters with constraints
+// Test route parameters with constraints and ETag support
 $router->get('/users/{id:\d+}', function ($request) {
     $params = $request->params();
     return Response::json([
@@ -31,7 +31,7 @@ $router->get('/users/{id:\d+}', function ($request) {
         'user_id' => (int) $params['id'],
         'params' => $params,
     ]);
-});
+}, [App\Middleware\ETag::class]);
 
 // Test route parameter without constraint
 $router->get('/posts/{slug}', function ($request) {
@@ -51,8 +51,8 @@ $router->get('/counted', function ($request) {
     ]);
 }, [App\Middleware\TestCounter::class]);
 
-// Test route group with prefix and middleware
-$router->group('/v1', ['middleware' => [App\Middleware\TestCounter::class]], function ($router) {
+// Test route group with prefix and middleware (including ETag for GET routes)
+$router->group('/v1', ['middleware' => [App\Middleware\TestCounter::class, App\Middleware\ETag::class]], function ($router) {
     $router->get('/users', function ($request) {
         return Response::json([
             'message' => 'Users list from v1 API',
@@ -135,3 +135,31 @@ $router->post('/validate/manual', function ($request) {
         'data' => $data,
     ]);
 });
+
+// ETag demonstration endpoint - truly static content for testing
+$router->get('/etag-static', function ($request) {
+    return Response::json([
+        'message' => 'This endpoint has static content for ETag testing',
+        'instructions' => [
+            '1. First request will return an ETag header',
+            '2. Copy the ETag value from the response',
+            '3. Make a second request with If-None-Match header set to the ETag value',
+            '4. The second request should return HTTP 304 Not Modified',
+        ],
+        'static_id' => 12345,
+        'static_data' => 'This content never changes for consistent ETag generation',
+    ]);
+}, [App\Middleware\ETag::class]);
+
+// ETag demonstration endpoint - dynamic content (timestamp changes)
+$router->get('/etag-demo', function ($request) {
+    return Response::json([
+        'message' => 'This endpoint demonstrates ETag functionality with dynamic content',
+        'instructions' => [
+            'Note: This endpoint includes a timestamp, so ETag will be different on each request',
+            'Use /etag-static for testing conditional GET (304) responses',
+        ],
+        'timestamp' => date('c'),
+        'request_count' => rand(1, 1000),
+    ]);
+}, [App\Middleware\ETag::class]);

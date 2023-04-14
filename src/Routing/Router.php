@@ -13,6 +13,51 @@ class Router
     private array $routes = [];
     private array $globalMiddleware = [];
     private array $groupStack = [];
+    private bool $cacheLoaded = false;
+
+    public function __construct()
+    {
+        $this->loadCacheIfAvailable();
+    }
+
+    /**
+     * Load cached routes if in production and cache exists.
+     */
+    private function loadCacheIfAvailable(): void
+    {
+        if ($this->shouldUseCache()) {
+            $cacheFile = $this->getCacheFilePath();
+            if (file_exists($cacheFile)) {
+                $this->routes = require $cacheFile;
+                $this->cacheLoaded = true;
+            }
+        }
+    }
+
+    /**
+     * Check if we should use route cache.
+     */
+    private function shouldUseCache(): bool
+    {
+        $appEnv = $_ENV['APP_ENV'] ?? 'development';
+        return $appEnv === 'production';
+    }
+
+    /**
+     * Get the path to the route cache file.
+     */
+    private function getCacheFilePath(): string
+    {
+        return __DIR__ . '/../../storage/cache/routes.php';
+    }
+
+    /**
+     * Get compiled routes for caching.
+     */
+    public function getCompiledRoutes(): array
+    {
+        return $this->routes;
+    }
 
     /**
      * Register a GET route.
@@ -75,6 +120,11 @@ class Router
      */
     private function addRoute(string $method, string $path, callable|array $handler, array $middleware): void
     {
+        // If routes are loaded from cache, don't register new ones
+        if ($this->cacheLoaded) {
+            return;
+        }
+
         // Apply group prefixes and middleware
         $fullPath = $this->getFullPath($path);
         $fullMiddleware = $this->getFullMiddleware($middleware);
@@ -226,6 +276,11 @@ class Router
      */
     public function group(string $prefix, array $attributes, callable $callback): void
     {
+        // If routes are loaded from cache, don't register new groups
+        if ($this->cacheLoaded) {
+            return;
+        }
+
         $this->groupStack[] = [
             'prefix' => $prefix,
             'middleware' => $attributes['middleware'] ?? [],

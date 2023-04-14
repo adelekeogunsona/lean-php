@@ -6,8 +6,11 @@ use LeanPHP\Routing\Router;
 use LeanPHP\Http\Response;
 use LeanPHP\Validation\Validator;
 
-// Health check endpoint with ETag support
-$router->get('/health', function ($request) {
+// Health check endpoint with ETag support (using controller for caching)
+$router->get('/health', [App\Controllers\HealthController::class, 'index'], [App\Middleware\ETag::class]);
+
+// Legacy health endpoint using closure (won't be cached)
+$router->get('/health-legacy', function ($request) {
     return Response::json([
         'status' => 'ok',
         'timestamp' => date('c'),

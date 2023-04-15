@@ -23,13 +23,14 @@ try {
             name TEXT NOT NULL,
             email TEXT UNIQUE NOT NULL,
             password TEXT NOT NULL,
+            scopes TEXT DEFAULT 'users.read',
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     ");
 
     // Check if demo user already exists
-    $existingUser = DB::select("SELECT id FROM users WHERE email = :email", [':email' => 'demo@local']);
+    $existingUser = DB::select("SELECT id FROM users WHERE email = :email", [':email' => 'demo@example.com']);
 
     if (!empty($existingUser)) {
         echo "Demo user already exists, skipping...\n";
@@ -44,12 +45,13 @@ try {
         ]);
 
         DB::execute("
-            INSERT INTO users (name, email, password)
-            VALUES (:name, :email, :password)
+            INSERT INTO users (name, email, password, scopes)
+            VALUES (:name, :email, :password, :scopes)
         ", [
             ':name' => 'Demo User',
-            ':email' => 'demo@local',
-            ':password' => $hashedPassword
+            ':email' => 'demo@example.com',
+            ':password' => $hashedPassword,
+            ':scopes' => 'users.read,users.write'
         ]);
 
         echo "Demo user created successfully!\n";
@@ -61,7 +63,7 @@ try {
 
     echo "✅ Database seeded successfully!\n";
     echo "\nDemo user credentials:\n";
-    echo "Email: demo@local\n";
+    echo "Email: demo@example.com\n";
     echo "Password: secret\n\n";
 
 } catch (\Exception $e) {

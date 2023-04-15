@@ -9,6 +9,9 @@ use LeanPHP\Validation\Validator;
 // Health check endpoint with ETag support (using controller for caching)
 $router->get('/health', [App\Controllers\HealthController::class, 'index'], [App\Middleware\ETag::class]);
 
+// Authentication endpoint
+$router->post('/login', [App\Controllers\AuthController::class, 'login']);
+
 // Legacy health endpoint using closure (won't be cached)
 $router->get('/health-legacy', function ($request) {
     return Response::json([
@@ -54,22 +57,26 @@ $router->get('/counted', function ($request) {
     ]);
 }, [App\Middleware\TestCounter::class]);
 
-// Test route group with prefix and middleware (including ETag for GET routes)
-$router->group('/v1', ['middleware' => [App\Middleware\TestCounter::class, App\Middleware\ETag::class]], function ($router) {
-    $router->get('/users', function ($request) {
-        return Response::json([
-            'message' => 'Users list from v1 API',
-            'users' => [],
-        ]);
-    });
+// API v1 routes with authentication and authorization
+$router->group('/v1', ['middleware' => [App\Middleware\ETag::class]], function ($router) {
+    // Users endpoints - require authentication and appropriate scopes
+    $router->get('/users', [App\Controllers\UserController::class, 'index'], [
+        App\Middleware\AuthBearer::class,
+        new App\Middleware\RequireScopes('users.read'),
+        App\Middleware\RateLimiter::class,
+    ]);
 
-    $router->get('/users/{id:\d+}', function ($request) {
-        $params = $request->params();
-        return Response::json([
-            'message' => 'User from v1 API',
-            'user_id' => (int) $params['id'],
-        ]);
-    });
+    $router->get('/users/{id:\d+}', [App\Controllers\UserController::class, 'show'], [
+        App\Middleware\AuthBearer::class,
+        new App\Middleware\RequireScopes('users.read'),
+        App\Middleware\RateLimiter::class,
+    ]);
+
+    $router->post('/users', [App\Controllers\UserController::class, 'create'], [
+        App\Middleware\AuthBearer::class,
+        new App\Middleware\RequireScopes('users.write'),
+        App\Middleware\RateLimiter::class,
+    ]);
 });
 
 // Test validation endpoints

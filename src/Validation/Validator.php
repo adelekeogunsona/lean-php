@@ -66,7 +66,7 @@ class Validator
         if ($this->fails()) {
             $problem = Problem::make(
                 422,
-                'Validation Failed',
+                'Unprocessable Content',
                 'The given data was invalid.',
                 '/problems/validation'
             );

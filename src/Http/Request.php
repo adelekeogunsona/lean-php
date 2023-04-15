@@ -203,4 +203,13 @@ class Request
         // Fall back to REMOTE_ADDR
         return $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
     }
+
+    /**
+     * Set JSON body data for testing purposes.
+     * This method is intended for use in tests only.
+     */
+    public function setJsonBody(array $data): void
+    {
+        $this->json = $data;
+    }
 }

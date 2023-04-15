@@ -231,6 +231,20 @@ class Router
             }
         }
 
+        // Auto-support OPTIONS requests for CORS preflight only
+        // Only create synthetic OPTIONS route if this looks like a CORS preflight request
+        if ($method === 'OPTIONS' && empty($matchedRoutes) && $request->header('access-control-request-method')) {
+            // Create a synthetic route for OPTIONS that will let CORS middleware handle it
+            $syntheticRoute = [
+                'method' => 'OPTIONS',
+                'path' => $path,
+                'handler' => function() { return Response::noContent()->status(204); },
+                'middleware' => [],
+                'matched_params' => []
+            ];
+            $matchedRoutes[] = $syntheticRoute;
+        }
+
         if (empty($matchedRoutes)) {
             if (!empty($availableMethods)) {
                 // Method not allowed - return 405 with Allow header
@@ -241,12 +255,12 @@ class Router
                     $uniqueMethods[] = 'HEAD';
                 }
 
-                return Problem::make(405, 'Method Not Allowed')
+                return Problem::make(405, 'Method Not Allowed', 'The HTTP method is not allowed for this resource', '/problems/method-not-allowed', null, $path)
                     ->header('Allow', implode(', ', $uniqueMethods));
             }
 
             // Route not found - return 404
-            return Problem::make(404, 'Not Found', "Route {$path} not found", '/problems/not-found');
+            return Problem::make(404, 'Not Found', "Route {$path} not found", '/problems/not-found', null, $path);
         }
 
         $route = $matchedRoutes[0];

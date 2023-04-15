@@ -126,8 +126,9 @@ class Cors
             return '*';
         }
 
-        // Otherwise return the specific origin
-        return $origin ?? '*';
+        // When credentials are enabled, we must return the specific origin (never *)
+        // If no origin provided but we need a specific one, this is an error case
+        return $origin ?? '';
     }
 
     /**

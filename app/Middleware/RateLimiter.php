@@ -43,11 +43,6 @@ class RateLimiter
         $remaining = $result['remaining'];
         $resetAt = $result['resetAt'];
 
-        // If we've exceeded the limit after this hit, return 429
-        if ($remaining <= 0) {
-            return $this->rateLimitExceeded($key, $limit, $window);
-        }
-
         // Continue to next middleware/controller
         $response = $next($request);
 

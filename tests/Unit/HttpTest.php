@@ -140,6 +140,106 @@ class HttpTest extends TestCase
         $this->assertEquals(['id' => '123', 'type' => 'user'], $request->params());
     }
 
+    public function test_response_emitter_should_omit_body_for_no_content_responses(): void
+    {
+        $reflection = new \ReflectionClass(ResponseEmitter::class);
+        $method = $reflection->getMethod('shouldOmitBody');
+        $method->setAccessible(true);
+
+        $this->assertTrue($method->invoke(null, 204));
+        $this->assertTrue($method->invoke(null, 304));
+        $this->assertTrue($method->invoke(null, 100));
+        $this->assertTrue($method->invoke(null, 101));
+
+        $this->assertFalse($method->invoke(null, 200));
+        $this->assertFalse($method->invoke(null, 404));
+        $this->assertFalse($method->invoke(null, 500));
+    }
+
+    public function test_response_emitter_prepare_headers_adds_content_length(): void
+    {
+        $reflection = new \ReflectionClass(ResponseEmitter::class);
+        $method = $reflection->getMethod('prepareHeaders');
+        $method->setAccessible(true);
+
+        $headers = ['content-type' => 'application/json'];
+        $body = '{"message":"test"}';
+        $result = $method->invoke(null, $headers, $body, 200);
+
+        $this->assertEquals((string) strlen($body), $result['content-length']);
+        $this->assertEquals('application/json', $result['content-type']);
+    }
+
+    public function test_response_emitter_prepare_headers_does_not_add_content_length_for_no_body_responses(): void
+    {
+        $reflection = new \ReflectionClass(ResponseEmitter::class);
+        $method = $reflection->getMethod('prepareHeaders');
+        $method->setAccessible(true);
+
+        $headers = ['content-type' => 'application/json'];
+        $body = 'some body';
+
+        // Test 204 No Content
+        $result = $method->invoke(null, $headers, $body, 204);
+        $this->assertArrayNotHasKey('content-length', $result);
+
+        // Test 304 Not Modified
+        $result = $method->invoke(null, $headers, $body, 304);
+        $this->assertArrayNotHasKey('content-length', $result);
+    }
+
+    public function test_response_emitter_prepare_headers_does_not_override_existing_content_length(): void
+    {
+        $reflection = new \ReflectionClass(ResponseEmitter::class);
+        $method = $reflection->getMethod('prepareHeaders');
+        $method->setAccessible(true);
+
+        $headers = ['content-type' => 'application/json', 'content-length' => '100'];
+        $body = '{"message":"test"}';
+        $result = $method->invoke(null, $headers, $body, 200);
+
+        $this->assertEquals('100', $result['content-length']);
+    }
+
+    public function test_response_emitter_format_header_name_converts_to_title_case(): void
+    {
+        $reflection = new \ReflectionClass(ResponseEmitter::class);
+        $method = $reflection->getMethod('formatHeaderName');
+        $method->setAccessible(true);
+
+        $this->assertEquals('Content-Type', $method->invoke(null, 'content-type'));
+        $this->assertEquals('X-Custom-Header', $method->invoke(null, 'x-custom-header'));
+        $this->assertEquals('Authorization', $method->invoke(null, 'authorization'));
+        $this->assertEquals('Cache-Control', $method->invoke(null, 'cache-control'));
+        $this->assertEquals('WWW-Authenticate', $method->invoke(null, 'www-authenticate'));
+    }
+
+    public function test_response_emitter_sanitize_header_value_removes_control_characters(): void
+    {
+        $reflection = new \ReflectionClass(ResponseEmitter::class);
+        $method = $reflection->getMethod('sanitizeHeaderValue');
+        $method->setAccessible(true);
+
+        // Test removal of control characters
+        $this->assertEquals('safe-value', $method->invoke(null, "safe-value\x00"));
+        $this->assertEquals('safe-value', $method->invoke(null, "safe\x0A-value"));
+        $this->assertEquals('safe-value', $method->invoke(null, "safe\x0D-value"));
+        $this->assertEquals('safe-value', $method->invoke(null, "safe\x7F-value"));
+
+        // Test normal values remain unchanged
+        $this->assertEquals('application/json', $method->invoke(null, 'application/json'));
+        $this->assertEquals('Bearer token123', $method->invoke(null, 'Bearer token123'));
+    }
+
+    public function test_response_without_body_method(): void
+    {
+        $response = Response::json(['message' => 'test'])->withoutBody();
+
+        $this->assertEquals('', $response->getBody());
+        $this->assertEquals('application/json', $response->getHeader('content-type'));
+        $this->assertEquals(200, $response->getStatusCode());
+    }
+
     protected function setUp(): void
     {
         // Clean up $_SERVER for consistent tests
@@ -157,21 +257,3 @@ class HttpTest extends TestCase
     }
 }
 
-class ResponseEmitterTest extends TestCase
-{
-    public function test_should_omit_body_for_204_responses(): void
-    {
-        $reflection = new \ReflectionClass(ResponseEmitter::class);
-        $method = $reflection->getMethod('shouldOmitBody');
-        $method->setAccessible(true);
-
-        $this->assertTrue($method->invoke(null, 204));
-        $this->assertTrue($method->invoke(null, 304));
-        $this->assertTrue($method->invoke(null, 100));
-        $this->assertTrue($method->invoke(null, 101));
-
-        $this->assertFalse($method->invoke(null, 200));
-        $this->assertFalse($method->invoke(null, 404));
-        $this->assertFalse($method->invoke(null, 500));
-    }
-}

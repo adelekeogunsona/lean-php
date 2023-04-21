@@ -9,6 +9,7 @@ use LeanPHP\Auth\Token;
 use LeanPHP\Http\Request;
 use LeanPHP\Http\Response;
 use LeanPHP\Http\Problem;
+use LeanPHP\Validation\ValidationException;
 
 class AuthBearer
 {
@@ -38,6 +39,9 @@ class AuthBearer
             // Continue to the next middleware/controller
             return $next($request);
 
+        } catch (ValidationException $e) {
+            // Re-throw ValidationException so it's handled by ErrorHandler
+            throw $e;
         } catch (InvalidArgumentException $e) {
             return $this->unauthorized('Invalid token: ' . $e->getMessage());
         } catch (\Exception $e) {

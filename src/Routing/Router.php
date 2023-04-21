@@ -365,7 +365,9 @@ class Router
                 $middlewareInstance = new $middlewareInstance();
             }
 
-            $next = fn(Request $req) => $middlewareInstance->handle($req, $next);
+            // Capture the current $next value properly
+            $currentNext = $next;
+            $next = fn(Request $req) => $middlewareInstance->handle($req, $currentNext);
         }
 
         return $next($request);

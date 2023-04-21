@@ -167,6 +167,16 @@ class ApiFlowTest extends TestCase
      */
     public function test_rate_limiting_flow(): void
     {
+        // Clean up any existing rate limit files before starting
+        $rateLimitFiles = glob('storage/ratelimit/*');
+        if ($rateLimitFiles !== false) {
+            foreach ($rateLimitFiles as $file) {
+                if (is_file($file)) {
+                    unlink($file);
+                }
+            }
+        }
+
         $_SERVER['REQUEST_METHOD'] = 'GET';
         $_SERVER['REQUEST_URI'] = '/v1/users';
         $_SERVER['HTTP_AUTHORIZATION'] = 'Bearer ' . $this->testToken;

@@ -527,4 +527,4 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ---
 
-**Built with ❤️ for modern PHP development**
+**Built with ❤️ by Adeleke**

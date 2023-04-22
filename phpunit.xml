@@ -24,5 +24,12 @@
         <env name="APP_DEBUG" value="true"/>
         <env name="DB_DSN" value="sqlite::memory:"/>
         <env name="LOG_PATH" value="php://stderr"/>
+        <env name="AUTH_JWT_CURRENT_KID" value="test"/>
+        <env name="AUTH_JWT_KEYS" value="test:dGVzdC1rZXktZm9yLWp3dC1zaWduaW5nLTEyMzQ1Njc4OTA"/>
+        <env name="AUTH_TOKEN_TTL" value="3600"/>
+        <env name="RATE_LIMIT_STORE" value="file"/>
+        <env name="RATE_LIMIT_DEFAULT" value="5"/>
+        <env name="RATE_LIMIT_WINDOW" value="60"/>
+        <env name="CORS_ALLOW_ORIGINS" value="*"/>
     </php>
 </phpunit>

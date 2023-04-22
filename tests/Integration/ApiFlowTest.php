@@ -22,31 +22,18 @@ class ApiFlowTest extends TestCase
     private string $testToken = '';
     private string $testTokenWithLimitedScopes = '';
 
-    public static function setUpBeforeClass(): void
-    {
-        // Set up test environment
-        $_ENV['APP_ENV'] = 'development';
-        $_ENV['APP_DEBUG'] = 'true';
-        $_ENV['AUTH_JWT_CURRENT_KID'] = 'test';
-        $_ENV['AUTH_JWT_KEYS'] = 'test:dGVzdC1rZXktZm9yLWp3dC1zaWduaW5nLTEyMzQ1Njc4OTA';
-        $_ENV['AUTH_TOKEN_TTL'] = '3600';
-        $_ENV['RATE_LIMIT_STORE'] = 'file';
-        $_ENV['RATE_LIMIT_DEFAULT'] = '5'; // Low limit for testing
-        $_ENV['RATE_LIMIT_WINDOW'] = '60';
-        $_ENV['CORS_ALLOW_ORIGINS'] = '*';
-        $_ENV['LOG_PATH'] = 'storage/logs/test.log';
-    }
-
     protected function setUp(): void
     {
+        // Set up environment variables for testing
+        $this->setupTestEnvironment();
+
         // Set up database for each test
         $this->setupTestDatabase();
 
         // Set up router and routes like the real application
         $this->setupRouter();
 
-        // Generate test tokens
-        $this->generateTestTokens();
+        // Generate test tokens will be done lazily when needed
     }
 
     protected function tearDown(): void
@@ -77,7 +64,17 @@ class ApiFlowTest extends TestCase
         if ($testDbFiles !== false) {
             foreach ($testDbFiles as $file) {
                 if (file_exists($file)) {
-                    unlink($file);
+                    // On Windows, try multiple times to delete the file
+                    $attempts = 3;
+                    while ($attempts > 0 && file_exists($file)) {
+                        $attempts--;
+                        if (@unlink($file)) {
+                            break;
+                        }
+                        if ($attempts > 0) {
+                            usleep(100000); // Wait 100ms before retry
+                        }
+                    }
                 }
             }
         }
@@ -139,6 +136,11 @@ class ApiFlowTest extends TestCase
      */
     public function test_etag_conditional_request_flow(): void
     {
+        // Generate test token when needed
+        if (empty($this->testToken)) {
+            $this->generateTestTokens();
+        }
+
         // Step 1: Make initial request to get ETag
         $_SERVER['REQUEST_METHOD'] = 'GET';
         $_SERVER['REQUEST_URI'] = '/v1/users/1';
@@ -167,19 +169,31 @@ class ApiFlowTest extends TestCase
      */
     public function test_rate_limiting_flow(): void
     {
-        // Clean up any existing rate limit files before starting
-        $rateLimitFiles = glob('storage/ratelimit/*');
-        if ($rateLimitFiles !== false) {
-            foreach ($rateLimitFiles as $file) {
-                if (is_file($file)) {
-                    unlink($file);
+        // More thorough cleanup of rate limit files
+        $rateLimitDir = 'storage/ratelimit';
+        if (is_dir($rateLimitDir)) {
+            $files = glob($rateLimitDir . '/*');
+            if ($files !== false) {
+                foreach ($files as $file) {
+                    if (is_file($file)) {
+                        unlink($file);
+                    }
                 }
             }
+        } else {
+            // Create the directory if it doesn't exist
+            mkdir($rateLimitDir, 0755, true);
         }
+
+        // Generate a unique token for this test to avoid interference with other tests
+        $rateLimitTestToken = \LeanPHP\Auth\Token::issue([
+            'sub' => 999, // Different user ID to avoid conflicts
+            'scopes' => ['users.read', 'users.write', 'users.delete']
+        ], 3600);
 
         $_SERVER['REQUEST_METHOD'] = 'GET';
         $_SERVER['REQUEST_URI'] = '/v1/users';
-        $_SERVER['HTTP_AUTHORIZATION'] = 'Bearer ' . $this->testToken;
+        $_SERVER['HTTP_AUTHORIZATION'] = 'Bearer ' . $rateLimitTestToken;
 
         // Make requests up to the limit (5 requests)
         for ($i = 0; $i < 5; $i++) {
@@ -210,6 +224,11 @@ class ApiFlowTest extends TestCase
      */
     public function test_scope_authorization_failure_flow(): void
     {
+        // Generate test tokens when needed
+        if (empty($this->testTokenWithLimitedScopes)) {
+            $this->generateTestTokens();
+        }
+
         // Try to access admin endpoint with limited scope token
         $_SERVER['REQUEST_METHOD'] = 'DELETE';
         $_SERVER['REQUEST_URI'] = '/v1/users/1';
@@ -232,6 +251,11 @@ class ApiFlowTest extends TestCase
      */
     public function test_validation_error_flow(): void
     {
+        // Generate test token when needed
+        if (empty($this->testToken)) {
+            $this->generateTestTokens();
+        }
+
         $_SERVER['REQUEST_METHOD'] = 'POST';
         $_SERVER['REQUEST_URI'] = '/v1/users';
         $_SERVER['HTTP_AUTHORIZATION'] = 'Bearer ' . $this->testToken;
@@ -304,8 +328,10 @@ class ApiFlowTest extends TestCase
         $this->assertEquals('*', $response->getHeader('access-control-allow-origin'));
         $this->assertNotNull($response->getHeader('access-control-allow-methods'));
         $this->assertNotNull($response->getHeader('access-control-allow-headers'));
-        $this->assertEquals('Origin, Access-Control-Request-Method, Access-Control-Request-Headers',
-                           $response->getHeader('vary'));
+        $this->assertEquals(
+            'Origin, Access-Control-Request-Method, Access-Control-Request-Headers',
+            $response->getHeader('vary')
+        );
     }
 
     /**
@@ -360,6 +386,23 @@ class ApiFlowTest extends TestCase
         $response = $this->router->dispatch($request);
 
         $this->assertEquals(200, $response->getStatusCode());
+    }
+
+    /**
+     * Set up test environment variables.
+     */
+    private function setupTestEnvironment(): void
+    {
+        $_ENV['APP_ENV'] = 'testing';
+        $_ENV['APP_DEBUG'] = 'true';
+        $_ENV['AUTH_JWT_CURRENT_KID'] = 'test';
+        $_ENV['AUTH_JWT_KEYS'] = 'test:dGVzdC1rZXktZm9yLWp3dC1zaWduaW5nLTEyMzQ1Njc4OTA';
+        $_ENV['AUTH_TOKEN_TTL'] = '3600';
+        $_ENV['RATE_LIMIT_STORE'] = 'file';
+        $_ENV['RATE_LIMIT_DEFAULT'] = '5';
+        $_ENV['RATE_LIMIT_WINDOW'] = '60';
+        $_ENV['CORS_ALLOW_ORIGINS'] = '*';
+        $_ENV['LOG_PATH'] = 'php://stderr';
     }
 
     /**
@@ -445,8 +488,8 @@ class ApiFlowTest extends TestCase
             ]);
 
             // Add DELETE route for testing scope authorization failure
-            $router->delete('/users/{id:\d+}', function() {
-                return \LeanPHP\Http\Response::noContent();
+            $router->delete('/users/{id:\d+}', function () {
+                return Response::noContent();
             }, [
                 \App\Middleware\AuthBearer::class,
                 new \App\Middleware\RequireScopes('users.write,users.delete'),

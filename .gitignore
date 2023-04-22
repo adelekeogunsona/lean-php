@@ -9,6 +9,7 @@ storage/logs/
 storage/cache/
 storage/ratelimit/
 storage/database.sqlite
+storage/*.sqlite
 
 # IDE files
 .vscode/

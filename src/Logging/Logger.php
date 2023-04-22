@@ -13,10 +13,12 @@ class Logger
     {
         $this->logPath = $logPath;
 
-        // Ensure log directory exists
-        $logDir = dirname($logPath);
-        if (!is_dir($logDir)) {
-            mkdir($logDir, 0755, true);
+        // Ensure log directory exists (skip for streams like php://stderr)
+        if (!str_starts_with($logPath, 'php://')) {
+            $logDir = dirname($logPath);
+            if (!is_dir($logDir)) {
+                mkdir($logDir, 0755, true);
+            }
         }
     }
 
@@ -82,8 +84,12 @@ class Logger
             empty($fullContext) ? '' : ' ' . json_encode($fullContext, JSON_UNESCAPED_SLASHES)
         );
 
-        // Write to file (with locking for thread safety)
-        file_put_contents($this->logPath, $logEntry, FILE_APPEND | LOCK_EX);
+        // Write to file (use locking only for real files, not streams)
+        $flags = FILE_APPEND;
+        if (!str_starts_with($this->logPath, 'php://')) {
+            $flags |= LOCK_EX;
+        }
+        file_put_contents($this->logPath, $logEntry, $flags);
     }
 
     /**

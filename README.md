@@ -1,4 +1,4 @@
-# LeanPHP - Tiny, Fast PHP 8.2 REST API Microframework
+# LeanPHP - Tiny, Fast REST API Microframework
 
 A minimalist, high-performance PHP framework designed for building secure JSON REST APIs. LeanPHP focuses on simplicity, security, and speed while providing all the essential features needed for modern API development.
 

@@ -53,7 +53,7 @@ curl http://localhost:8000/health
 # Login to get a token
 curl -X POST http://localhost:8000/login \
   -H "Content-Type: application/json" \
-  -d '{"email":"demo@local","password":"secret"}'
+  -d '{"email":"demo@example.com","password":"secret"}'
 
 # Use the token for authenticated requests
 curl http://localhost:8000/v1/users \

@@ -203,6 +203,9 @@ chmod -R 777 storage/ratelimit/
 LeanPHP includes a seeding script to set up the database schema and create demo data:
 
 ```bash
+# Create SQLite database file
+touch storage/database.sqlite
+
 # Initialize database and create demo user
 php scripts/seed.php
 ```

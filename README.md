@@ -34,6 +34,9 @@ composer install
 cp .env.example .env
 # Edit .env with your configuration
 
+# Create Database
+touch storage/database.sqlite
+
 # Initialize database
 php scripts/seed.php
 
